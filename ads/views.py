@@ -1,10 +1,8 @@
 import json
 
 from django.core.paginator import Paginator
-from django.db.models import Model
-from django.http import JsonResponse, request, response
+from django.http import JsonResponse
 from django.utils.decorators import method_decorator
-from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView, ListView, CreateView, UpdateView, DeleteView
 from django.shortcuts import get_object_or_404
@@ -19,6 +17,10 @@ def index(request):
 
 
 class CategoryListView(ListView):
+    """
+    Получение списка всех категорий.
+    Return: json-файл с данными категорий объявлений.
+    """
     model = Category
     category_qs = Category.objects.all()
 
@@ -37,10 +39,17 @@ class CategoryListView(ListView):
 
 
 class CategoryDetailView(DetailView):
+    """
+    Получение категории по id.
+    Return: json-файл с данными категории.
+    """
     model = Category
 
     def get(self, request, *args, **kwargs):
-        cat = self.get_object()
+        try:
+            cat = self.get_object()
+        except Exception:
+            return JsonResponse({"error": "User not found"}, status=404)
 
         return JsonResponse({
             "id": cat.id,
@@ -50,6 +59,10 @@ class CategoryDetailView(DetailView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CategoryCreateView(CreateView):
+    """
+    Создание категории.
+    Return: json-файл с данными категории.
+    """
     model = Category
     fields = ['name']
 
@@ -67,6 +80,10 @@ class CategoryCreateView(CreateView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CategoryUpdateView(UpdateView):
+    """
+    Обновление категории.
+    Return: json-файл с данными категории.
+    """
     model = Category
     fields = ['name']
 
@@ -84,6 +101,10 @@ class CategoryUpdateView(UpdateView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CategoryDeleteView(DeleteView):
+    """
+    Удаление категории.
+    Return: редирект на страницу со статусом "ок".
+    """
     model = Category
     success_url = '/'
 
@@ -95,15 +116,15 @@ class CategoryDeleteView(DeleteView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AdListView(ListView):
+    """
+    Получение списка всех объявлений.
+    Return: json-файл с данными объявлений.
+    """
     model = Ad
     ads_qs = Ad.objects.all()
 
     def get(self, request, *args, **kwargs):
         super().get(request, *args, **kwargs)
-
-        # search_text = request.GET.get("name", None)
-        # if search_text:
-        #     self.object_list = self.object_list.filter(name=search_text)
 
         self.object_list = self.object_list.select_related("author", "category").order_by("-price")
 
@@ -135,8 +156,39 @@ class AdListView(ListView):
         return JsonResponse(response, safe=False, json_dumps_params=JSON_DUMPS_PARAM)
 
 
+class AdDetailView(DetailView):
+    """
+    Получение объявления по id.
+    Return: json-файл с данными объявления.
+    """
+    model = Ad
+
+    def get(self, request, *args, **kwargs):
+        try:
+            ad = self.get_object()
+        except Exception:
+            return JsonResponse({"error": "User not found"}, status=404)
+
+        return JsonResponse({
+            "id": ad.id,
+            "name": ad.name,
+            "author_id": ad.author_id,
+            "author": ad.author.first_name,
+            "price": ad.price,
+            "description": ad.description,
+            "is_published": ad.is_published,
+            "category": ad.category.name,
+            "category_id": ad.category_id,
+            "image": ad.image.url if ad.image else None
+        }, json_dumps_params=JSON_DUMPS_PARAM)
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class AdCreateView(CreateView):
+    """
+    Создание объявления.
+    Return: json-файл с данными объявления.
+    """
     model = Ad
     fields = ["name", "author", "price", "description", "is_published", "category"]
 
@@ -173,28 +225,12 @@ class AdCreateView(CreateView):
         }, json_dumps_params=JSON_DUMPS_PARAM)
 
 
-class AdDetailView(DetailView):
-    model = Ad
-
-    def get(self, request, *args, **kwargs):
-        ad = self.get_object()
-
-        return JsonResponse({
-            "id": ad.id,
-            "name": ad.name,
-            "author_id": ad.author_id,
-            "author": ad.author.first_name,
-            "price": ad.price,
-            "description": ad.description,
-            "is_published": ad.is_published,
-            "category": ad.category.name,
-            "category_id": ad.category_id,
-            "image": ad.image.url if ad.image else None
-        }, json_dumps_params=JSON_DUMPS_PARAM)
-
-
 @method_decorator(csrf_exempt, name='dispatch')
 class AdUpdateView(UpdateView):
+    """
+    Обновление объявления.
+    Return: json-файл с данными объявления.
+    """
     model = Ad
     fields = ["name", "author", "price", "description", "category"]
 
@@ -227,6 +263,10 @@ class AdUpdateView(UpdateView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AdDeleteView(DeleteView):
+    """
+    Удаление объявления.
+    Return: редирект на страницу со статусом "ок".
+    """
     model = Ad
     success_url = '/'
 
@@ -238,6 +278,10 @@ class AdDeleteView(DeleteView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AdUploadImageView(UpdateView):
+    """
+    Загрузка картинок в объявление.
+    Return: json-файл с данными объявления.
+    """
     model = Ad
     fields = ['image']
 

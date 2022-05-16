@@ -27,7 +27,7 @@ class User(models.Model):
     password = models.TextField()
     role = models.CharField(max_length=9, choices=ROLES, default="user")
     age = models.PositiveSmallIntegerField()
-    location_id = models.ManyToManyField(Location)
+    locations = models.ManyToManyField(Location)
 
     class Meta:
         verbose_name = "Пользователь"
@@ -36,4 +36,3 @@ class User(models.Model):
 
     def __str__(self):
         return self.username
-
