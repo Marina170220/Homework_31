@@ -1,26 +1,33 @@
 import json
 
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.db.models import Model
+from django.http import JsonResponse, request, response
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import DetailView
+from django.views.generic import DetailView, ListView, CreateView, UpdateView, DeleteView
+from django.shortcuts import get_object_or_404
 
+from Homework_27.settings import JSON_DUMPS_PARAM, TOTAL_ON_PAGE
 from ads.models import Ad, Category
-
-JSON_DUMPS_PARAM = {"ensure_ascii": False}
+from users.models import User
 
 
 def index(request):
     return JsonResponse({"status": "ok"}, status=200)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class CategoryView(View):
-    def get(self, request):
-        cats = Category.objects.all()
+class CategoryListView(ListView):
+    model = Category
+    category_qs = Category.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        super().get(request, *args, **kwargs)
+        self.object_list = self.object_list.order_by("name")
+
         response = []
-        for cat in cats:
+        for cat in self.object_list:
             response.append({
                 "id": cat.id,
                 "name": cat.name,
@@ -28,26 +35,12 @@ class CategoryView(View):
 
         return JsonResponse(response, safe=False, json_dumps_params=JSON_DUMPS_PARAM)
 
-    def post(self, request):
-        cat_data = json.loads(request.body)
-
-        cat = Category()
-        cat.name = cat_data["name"]
-        cat.save()
-
-        return JsonResponse({
-            "id": cat.id,
-            "name": cat.name}, json_dumps_params=JSON_DUMPS_PARAM)
-
 
 class CategoryDetailView(DetailView):
     model = Category
 
     def get(self, request, *args, **kwargs):
-        try:
-            cat = self.get_object()
-        except Exception:
-            return JsonResponse({"error": "Not found"}, status=404)
+        cat = self.get_object()
 
         return JsonResponse({
             "id": cat.id,
@@ -56,41 +49,127 @@ class CategoryDetailView(DetailView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class AdView(View):
-    def get(self, request):
-        ads = Ad.objects.all()
-        response = []
-        for ad in ads:
-            response.append({
+class CategoryCreateView(CreateView):
+    model = Category
+    fields = ['name']
+
+    def post(self, request, *args, **kwargs):
+        cat_data = json.loads(request.body)
+
+        cat = Category.objects.create(
+            name=cat_data["name"]
+        )
+
+        return JsonResponse({
+            "id": cat.id,
+            "name": cat.name}, json_dumps_params=JSON_DUMPS_PARAM)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CategoryUpdateView(UpdateView):
+    model = Category
+    fields = ['name']
+
+    def patch(self, request, *args, **kwargs):
+        super().post(request, *args, **kwargs)
+
+        cat_data = json.loads(request.body)
+        self.object.name = cat_data["name"]
+        self.object.save()
+
+        return JsonResponse({
+            "id": self.object.id,
+            "name": self.object.name}, json_dumps_params=JSON_DUMPS_PARAM)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CategoryDeleteView(DeleteView):
+    model = Category
+    success_url = '/'
+
+    def delete(self, request, *args, **kwargs):
+        super().delete(request, *args, **kwargs)
+
+        return JsonResponse({"status": "OK"}, status=200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdListView(ListView):
+    model = Ad
+    ads_qs = Ad.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        super().get(request, *args, **kwargs)
+
+        # search_text = request.GET.get("name", None)
+        # if search_text:
+        #     self.object_list = self.object_list.filter(name=search_text)
+
+        self.object_list = self.object_list.select_related("author", "category").order_by("-price")
+
+        paginator = Paginator(self.object_list, TOTAL_ON_PAGE)
+        page_number = request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+
+        ads = []
+        for ad in page_obj:
+            ads.append({
                 "id": ad.id,
                 "name": ad.name,
-                "author": ad.author,
+                "author": ad.author.first_name,
+                "author_id": ad.author_id,
                 "price": ad.price,
+                "description": ad.description,
+                "is_published": ad.is_published,
+                "category": ad.category.name,
+                "category_id": ad.category_id,
+                "image": ad.image.url if ad.image else None
             })
+
+        response = {
+            "items": ads,
+            "num_pages": page_obj.paginator.num_pages,
+            "total": page_obj.paginator.count
+        }
 
         return JsonResponse(response, safe=False, json_dumps_params=JSON_DUMPS_PARAM)
 
-    def post(self, request):
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdCreateView(CreateView):
+    model = Ad
+    fields = ["name", "author", "price", "description", "is_published", "category"]
+
+    def post(self, request, *args, **kwargs):
         ad_data = json.loads(request.body)
 
-        ad = Ad()
-        ad.name = ad_data["name"]
-        ad.author = ad_data["author"]
-        ad.price = ad_data["price"]
-        ad.description = ad_data["description"]
-        ad.address = ad_data["address"]
-        ad.is_published = ad_data["is_published"]
+        author = get_object_or_404(User, pk=ad_data["author_id"])
+        category = get_object_or_404(Category, pk=ad_data["category_id"])
+        iOneMore = Ad.objects.last().id + 1
 
-        ad.save()
+        ad = Ad.objects.create(
+            id=iOneMore,
+            name=ad_data["name"],
+            author=author,
+            price=ad_data["price"],
+            description=ad_data["description"],
+            is_published=ad_data["is_published"],
+            category=category,
+
+        )
 
         return JsonResponse({
             "id": ad.id,
             "name": ad.name,
-            "author": ad.author,
+            "author": ad.author.first_name,
+            "author_id": ad.author_id,
             "price": ad.price,
             "description": ad.description,
-            "address": ad.address,
-            "is_published": ad.is_published
+            "is_published": ad.is_published,
+            "category": ad.category.name,
+            "category_id": ad.category_id,
+            "image": ad.image.url if ad.image else None
+
         }, json_dumps_params=JSON_DUMPS_PARAM)
 
 
@@ -98,17 +177,85 @@ class AdDetailView(DetailView):
     model = Ad
 
     def get(self, request, *args, **kwargs):
-        try:
-            ad = self.get_object()
-        except Exception:
-            return JsonResponse({"error": "Not found"}, status=404)
+        ad = self.get_object()
 
         return JsonResponse({
             "id": ad.id,
             "name": ad.name,
-            "author": ad.author,
+            "author_id": ad.author_id,
+            "author": ad.author.first_name,
             "price": ad.price,
             "description": ad.description,
-            "address": ad.address,
-            "is_published": ad.is_published
+            "is_published": ad.is_published,
+            "category": ad.category.name,
+            "category_id": ad.category_id,
+            "image": ad.image.url if ad.image else None
+        }, json_dumps_params=JSON_DUMPS_PARAM)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdUpdateView(UpdateView):
+    model = Ad
+    fields = ["name", "author", "price", "description", "category"]
+
+    def patch(self, request, *args, **kwargs):
+        super().post(request, *args, **kwargs)
+
+        ad_data = json.loads(request.body)
+        self.object.name = ad_data["name"]
+        self.object.price = ad_data["price"]
+        self.object.description = ad_data["description"]
+
+        self.object.author = get_object_or_404(User, pk=ad_data["author_id"])
+        self.object.category = get_object_or_404(Category, pk=ad_data["category_id"])
+
+        self.object.save()
+
+        return JsonResponse({
+            "id": self.object.id,
+            "name": self.object.name,
+            "author": self.object.author.first_name,
+            "author_id": self.object.author_id,
+            "price": self.object.price,
+            "description": self.object.description,
+            "is_published": self.object.is_published,
+            "category": self.object.category.name,
+            "category_id": self.object.category_id,
+            "image": self.object.image.url if self.object.image else None
+        }, json_dumps_params=JSON_DUMPS_PARAM)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdDeleteView(DeleteView):
+    model = Ad
+    success_url = '/'
+
+    def delete(self, request, *args, **kwargs):
+        super().delete(request, *args, **kwargs)
+
+        return JsonResponse({"status": "OK"}, status=200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdUploadImageView(UpdateView):
+    model = Ad
+    fields = ['image']
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        self.object.image = request.FILES.get('image', None)
+        self.object.save()
+
+        return JsonResponse({
+            "id": self.object.id,
+            "name": self.object.name,
+            "author": self.object.author.first_name,
+            "author_id": self.object.author_id,
+            "price": self.object.price,
+            "description": self.object.description,
+            "is_published": self.object.is_published,
+            "category": self.object.category.name,
+            "category_id": self.object.category_id,
+            "image": self.object.image.url if self.object.image else None
         }, json_dumps_params=JSON_DUMPS_PARAM)
