@@ -114,11 +114,11 @@ class CategoryDeleteView(DeleteView):
         return JsonResponse({"status": "OK"}, status=200)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class AdListView(ListView):
     """
     Получение списка всех объявлений.
-    Return: json-файл с данными объявлений.
+    Return: список с данными объявлений.
+
     """
     model = Ad
     ads_qs = Ad.objects.all()
@@ -128,9 +128,34 @@ class AdListView(ListView):
 
         self.object_list = self.object_list.select_related("author", "category").order_by("-price")
 
+        search_categories = request.GET.getlist('cat', [])
+        if search_categories:
+            self.object_list = self.object_list.filter(category_id__in=search_categories)
+
+
+        search_text = request.GET.get('text', None)
+        if search_text:
+            self.object_list = self.object_list.filter(name__icontains=search_text)
+
+        search_location = request.GET.get('location', None)
+        if search_location:
+            self.object_list = self.object_list.filter(author__location__name__icontains=search_location)
+
+        min_price = request.GET.get('price_from', None)
+        max_price = request.GET.get('price_to', None)
+        if min_price:
+            if max_price:
+                self.object_list = self.object_list.filter(price__range=[min_price, max_price])
+            else:
+                self.object_list = self.object_list.filter(price__gte=min_price)
+        elif max_price:
+            self.object_list = self.object_list.filter(price__lte=max_price)
+
+
+        self.object_list = self.object_list.select_related('author').order_by('-price')
         paginator = Paginator(self.object_list, TOTAL_ON_PAGE)
-        page_number = request.GET.get("page")
-        page_obj = paginator.get_page(page_number)
+        page_num = request.GET.get('page')
+        page_obj = paginator.get_page(page_num)
 
         ads = []
         for ad in page_obj:

@@ -15,8 +15,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework import routers
 
 from ads import views
+from users.views import LocationViewSet
+
+
+router = routers.SimpleRouter()
+router.register('location', LocationViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,4 +30,7 @@ urlpatterns = [
     path('cat/', include('ads.cat_urls')),
     path('ad/', include('ads.ads_urls')),
     path('user/', include('users.urls')),
+    path('api-auth/', include('rest_framework.urls')),
 ]
+
+urlpatterns += router.urls

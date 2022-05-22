@@ -1,6 +1,9 @@
 from django.urls import path
+from rest_framework import routers
 
 from users import views
+from users.views import LocationViewSet
+
 
 urlpatterns = [
     path('', views.UserListView.as_view()),
@@ -8,5 +11,5 @@ urlpatterns = [
     path('create/', views.UserCreateView.as_view()),
     path('<int:pk>/update/', views.UserUpdateView.as_view()),
     path('<int:pk>/delete/', views.UserDeleteView.as_view()),
-    path('ads/', views.UserAdsDetailView.as_view()),
+    path('ads/', views.UsersAdsDetailView.as_view()),
 ]
