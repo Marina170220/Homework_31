@@ -33,7 +33,8 @@ category_router.register('category', CategoryViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index),
-    path('ad/', include('ads.urls')),
+    path('ad/', include('ads.ad_urls')),
+    path('selection/', include('ads.selection_urls')),
     path('user/', include('users.urls')),
     path('api-auth/', include('rest_framework.urls')),
 ]

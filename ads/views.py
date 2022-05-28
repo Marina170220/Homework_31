@@ -4,9 +4,10 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView,
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
-from ads.models import Ad, Category
+from ads.models import Ad, Category, Selection
+from ads.permissions import SelectionEditPermission, AdEditPermission
 from ads.serializers import CategorySerializer, AdSerializer, AdCreateSerializer, AdUpdateSerializer, \
-    AdDeleteSerializer, AdUploadImageSerializer
+    AdDeleteSerializer, AdUploadImageSerializer, SelectionDetailSerializer, SelectionListSerializer, SelectionSerializer
 
 
 def index(request):
@@ -85,6 +86,8 @@ class AdUpdateView(UpdateAPIView):
 
     queryset = Ad.objects.all()
     serializer_class = AdUpdateSerializer
+    permission_classes = [IsAuthenticated, AdEditPermission]
+
 
 
 class AdDeleteView(DestroyAPIView):
@@ -93,6 +96,8 @@ class AdDeleteView(DestroyAPIView):
     """
     queryset = Ad.objects.all()
     serializer_class = AdDeleteSerializer
+    permission_classes = [IsAuthenticated, AdEditPermission]
+
 
 
 class AdUploadImageView(UpdateAPIView):
@@ -101,6 +106,7 @@ class AdUploadImageView(UpdateAPIView):
     """
     queryset = Ad.objects.all()
     serializer_class = AdUploadImageSerializer
+    permission_classes = [IsAuthenticated, AdEditPermission]
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
@@ -108,3 +114,46 @@ class AdUploadImageView(UpdateAPIView):
         self.object.image = request.FILES.get('image', None)
         self.object.save()
         return self.update(request, *args, **kwargs)
+
+
+class SelectionListView(ListAPIView):
+    """
+    Просмотр списка подборок.
+    """
+    queryset = Selection.objects.all()
+    serializer_class = SelectionListSerializer
+
+
+class SelectionDetailView(RetrieveAPIView):
+    """
+    Просмотр подборки объявлений по id.
+    """
+    queryset = Selection.objects.all()
+    serializer_class = SelectionDetailSerializer
+
+
+class SelectionCreateView(CreateAPIView):
+    """
+    Создание подборки объявлений.
+    """
+    queryset = Selection.objects.all()
+    serializer_class = SelectionSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class SelectionUpdateView(UpdateAPIView):
+    """
+    Изменение подборки объявлений.
+    """
+    queryset = Selection.objects.all()
+    serializer_class = SelectionSerializer
+    permission_classes = [IsAuthenticated, SelectionEditPermission]
+
+
+class SelectionDeleteView(DestroyAPIView):
+    """
+    Удаление подборки.
+    """
+    queryset = Selection.objects.all()
+    serializer_class = SelectionSerializer
+    permission_classes = [IsAuthenticated, SelectionEditPermission]

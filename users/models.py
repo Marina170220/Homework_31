@@ -16,18 +16,18 @@ class Location(models.Model):
 
 
 class User(AbstractUser):
+    USER = "user"
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+
     ROLES = [
-        ("user", "Пользователь"),
-        ("moderator", "Модератор"),
-        ("admin", "Админ")
+        (USER, USER),
+        (MODERATOR, MODERATOR),
+        (ADMIN, ADMIN)
     ]
 
-    first_name = models.CharField(max_length=20)
-    last_name = models.CharField(max_length=20, null=True, blank=True)
-    username = models.CharField(max_length=20, unique=True)
-    password = models.TextField()
-    role = models.CharField(max_length=9, choices=ROLES, default="user")
-    age = models.PositiveSmallIntegerField(default=0)
+    role = models.CharField(max_length=9, choices=ROLES, default=USER)
+    age = models.PositiveSmallIntegerField(null=True)
     locations = models.ManyToManyField(Location)
 
     class Meta:
