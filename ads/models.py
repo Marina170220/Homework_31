@@ -29,3 +29,15 @@ class Ad(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def author_name(self):
+        return self.author.username if self.author else None
+
+    @property
+    def category_name(self):
+        return self.category.name if self.category else None
+
+    @property
+    def location(self):
+        return self.author.locations if self.author.locations else []

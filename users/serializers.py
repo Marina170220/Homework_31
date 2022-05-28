@@ -6,7 +6,7 @@ from users.models import Location, User
 class LocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Location
-        fields = '__all__'
+        exclude = ['id']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -35,6 +35,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = User.objects.create(**validated_data)
+
+        user.set_password(validated_data['password'])
+        user.save()
 
         for location in self._locations:
             location_obj, _ = Location.objects.get_or_create(name=location)

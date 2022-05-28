@@ -1,330 +1,110 @@
-import json
-
-from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import JsonResponse
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import DetailView, ListView, CreateView, UpdateView, DeleteView
-from django.shortcuts import get_object_or_404
+from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, UpdateAPIView, DestroyAPIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
 
-from Homework_27.settings import JSON_DUMPS_PARAM, TOTAL_ON_PAGE
 from ads.models import Ad, Category
-from users.models import User
+from ads.serializers import CategorySerializer, AdSerializer, AdCreateSerializer, AdUpdateSerializer, \
+    AdDeleteSerializer, AdUploadImageSerializer
 
 
 def index(request):
     return JsonResponse({"status": "ok"}, status=200)
 
 
-class CategoryListView(ListView):
-    """
-    Получение списка всех категорий.
-    Return: json-файл с данными категорий объявлений.
-    """
-    model = Category
-    category_qs = Category.objects.all()
-
-    def get(self, request, *args, **kwargs):
-        super().get(request, *args, **kwargs)
-        self.object_list = self.object_list.order_by("name")
-
-        response = []
-        for cat in self.object_list:
-            response.append({
-                "id": cat.id,
-                "name": cat.name,
-            })
-
-        return JsonResponse(response, safe=False, json_dumps_params=JSON_DUMPS_PARAM)
+class CategoryViewSet(ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
 
 
-class CategoryDetailView(DetailView):
-    """
-    Получение категории по id.
-    Return: json-файл с данными категории.
-    """
-    model = Category
-
-    def get(self, request, *args, **kwargs):
-        try:
-            cat = self.get_object()
-        except Exception:
-            return JsonResponse({"error": "User not found"}, status=404)
-
-        return JsonResponse({
-            "id": cat.id,
-            "name": cat.name,
-        }, json_dumps_params=JSON_DUMPS_PARAM)
-
-
-@method_decorator(csrf_exempt, name='dispatch')
-class CategoryCreateView(CreateView):
-    """
-    Создание категории.
-    Return: json-файл с данными категории.
-    """
-    model = Category
-    fields = ['name']
-
-    def post(self, request, *args, **kwargs):
-        cat_data = json.loads(request.body)
-
-        cat = Category.objects.create(
-            name=cat_data["name"]
-        )
-
-        return JsonResponse({
-            "id": cat.id,
-            "name": cat.name}, json_dumps_params=JSON_DUMPS_PARAM)
-
-
-@method_decorator(csrf_exempt, name='dispatch')
-class CategoryUpdateView(UpdateView):
-    """
-    Обновление категории.
-    Return: json-файл с данными категории.
-    """
-    model = Category
-    fields = ['name']
-
-    def patch(self, request, *args, **kwargs):
-        super().post(request, *args, **kwargs)
-
-        cat_data = json.loads(request.body)
-        self.object.name = cat_data["name"]
-        self.object.save()
-
-        return JsonResponse({
-            "id": self.object.id,
-            "name": self.object.name}, json_dumps_params=JSON_DUMPS_PARAM)
-
-
-@method_decorator(csrf_exempt, name='dispatch')
-class CategoryDeleteView(DeleteView):
-    """
-    Удаление категории.
-    Return: редирект на страницу со статусом "ок".
-    """
-    model = Category
-    success_url = '/'
-
-    def delete(self, request, *args, **kwargs):
-        super().delete(request, *args, **kwargs)
-
-        return JsonResponse({"status": "OK"}, status=200)
-
-
-class AdListView(ListView):
+class AdListView(ListAPIView):
     """
     Получение списка всех объявлений.
-    Return: список с данными объявлений.
 
     """
-    model = Ad
-    ads_qs = Ad.objects.all()
+    queryset = Ad.objects.all()
+    serializer_class = AdSerializer
 
     def get(self, request, *args, **kwargs):
-        super().get(request, *args, **kwargs)
 
-        self.object_list = self.object_list.select_related("author", "category").order_by("-price")
+        self.queryset = self.queryset.select_related("author", "category").order_by("-price")
 
         search_categories = request.GET.getlist('cat', [])
         if search_categories:
-            self.object_list = self.object_list.filter(category_id__in=search_categories)
-
+            self.queryset = self.queryset.filter(category_id__in=search_categories)
 
         search_text = request.GET.get('text', None)
         if search_text:
-            self.object_list = self.object_list.filter(name__icontains=search_text)
+            self.queryset = self.queryset.filter(name__icontains=search_text)
 
         search_location = request.GET.get('location', None)
         if search_location:
-            self.object_list = self.object_list.filter(author__location__name__icontains=search_location)
+            self.queryset = self.queryset.filter(author__location__name__icontains=search_location)
 
-        min_price = request.GET.get('price_from', None)
-        max_price = request.GET.get('price_to', None)
+        min_price = int(request.GET.get('price_from', 0))
+        max_price = int(request.GET.get('price_to', 0))
+        price_q = None
+
         if min_price:
+            price_q = Q(price__gte=min_price)
             if max_price:
-                self.object_list = self.object_list.filter(price__range=[min_price, max_price])
-            else:
-                self.object_list = self.object_list.filter(price__gte=min_price)
+                price_q &= Q(price__lte=max_price)
+
         elif max_price:
-            self.object_list = self.object_list.filter(price__lte=max_price)
+            price_q = Q(price__lte=max_price)
+
+        if price_q is not None:
+            self.queryset = self.queryset.filter(price_q)
+
+        return super().get(request, *args, **kwargs)
 
 
-        self.object_list = self.object_list.select_related('author').order_by('-price')
-        paginator = Paginator(self.object_list, TOTAL_ON_PAGE)
-        page_num = request.GET.get('page')
-        page_obj = paginator.get_page(page_num)
-
-        ads = []
-        for ad in page_obj:
-            ads.append({
-                "id": ad.id,
-                "name": ad.name,
-                "author": ad.author.first_name,
-                "author_id": ad.author_id,
-                "price": ad.price,
-                "description": ad.description,
-                "is_published": ad.is_published,
-                "category": ad.category.name,
-                "category_id": ad.category_id,
-                "image": ad.image.url if ad.image else None
-            })
-
-        response = {
-            "items": ads,
-            "num_pages": page_obj.paginator.num_pages,
-            "total": page_obj.paginator.count
-        }
-
-        return JsonResponse(response, safe=False, json_dumps_params=JSON_DUMPS_PARAM)
-
-
-class AdDetailView(DetailView):
+class AdDetailView(RetrieveAPIView):
     """
     Получение объявления по id.
-    Return: json-файл с данными объявления.
     """
-    model = Ad
-
-    def get(self, request, *args, **kwargs):
-        try:
-            ad = self.get_object()
-        except Exception:
-            return JsonResponse({"error": "User not found"}, status=404)
-
-        return JsonResponse({
-            "id": ad.id,
-            "name": ad.name,
-            "author_id": ad.author_id,
-            "author": ad.author.first_name,
-            "price": ad.price,
-            "description": ad.description,
-            "is_published": ad.is_published,
-            "category": ad.category.name,
-            "category_id": ad.category_id,
-            "image": ad.image.url if ad.image else None
-        }, json_dumps_params=JSON_DUMPS_PARAM)
+    queryset = Ad.objects.all()
+    serializer_class = AdSerializer
+    permission_classes = [IsAuthenticated]
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdCreateView(CreateView):
+class AdCreateView(CreateAPIView):
     """
     Создание объявления.
-    Return: json-файл с данными объявления.
     """
-    model = Ad
-    fields = ["name", "author", "price", "description", "is_published", "category"]
 
-    def post(self, request, *args, **kwargs):
-        ad_data = json.loads(request.body)
-
-        author = get_object_or_404(User, pk=ad_data["author_id"])
-        category = get_object_or_404(Category, pk=ad_data["category_id"])
-        iOneMore = Ad.objects.last().id + 1
-
-        ad = Ad.objects.create(
-            id=iOneMore,
-            name=ad_data["name"],
-            author=author,
-            price=ad_data["price"],
-            description=ad_data["description"],
-            is_published=ad_data["is_published"],
-            category=category,
-
-        )
-
-        return JsonResponse({
-            "id": ad.id,
-            "name": ad.name,
-            "author": ad.author.first_name,
-            "author_id": ad.author_id,
-            "price": ad.price,
-            "description": ad.description,
-            "is_published": ad.is_published,
-            "category": ad.category.name,
-            "category_id": ad.category_id,
-            "image": ad.image.url if ad.image else None
-
-        }, json_dumps_params=JSON_DUMPS_PARAM)
+    queryset = Ad.objects.all()
+    serializer_class = AdCreateSerializer
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdUpdateView(UpdateView):
+class AdUpdateView(UpdateAPIView):
     """
     Обновление объявления.
-    Return: json-файл с данными объявления.
     """
-    model = Ad
-    fields = ["name", "author", "price", "description", "category"]
 
-    def patch(self, request, *args, **kwargs):
-        super().post(request, *args, **kwargs)
-
-        ad_data = json.loads(request.body)
-        self.object.name = ad_data["name"]
-        self.object.price = ad_data["price"]
-        self.object.description = ad_data["description"]
-
-        self.object.author = get_object_or_404(User, pk=ad_data["author_id"])
-        self.object.category = get_object_or_404(Category, pk=ad_data["category_id"])
-
-        self.object.save()
-
-        return JsonResponse({
-            "id": self.object.id,
-            "name": self.object.name,
-            "author": self.object.author.first_name,
-            "author_id": self.object.author_id,
-            "price": self.object.price,
-            "description": self.object.description,
-            "is_published": self.object.is_published,
-            "category": self.object.category.name,
-            "category_id": self.object.category_id,
-            "image": self.object.image.url if self.object.image else None
-        }, json_dumps_params=JSON_DUMPS_PARAM)
+    queryset = Ad.objects.all()
+    serializer_class = AdUpdateSerializer
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdDeleteView(DeleteView):
+class AdDeleteView(DestroyAPIView):
     """
     Удаление объявления.
-    Return: редирект на страницу со статусом "ок".
     """
-    model = Ad
-    success_url = '/'
-
-    def delete(self, request, *args, **kwargs):
-        super().delete(request, *args, **kwargs)
-
-        return JsonResponse({"status": "OK"}, status=200)
+    queryset = Ad.objects.all()
+    serializer_class = AdDeleteSerializer
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdUploadImageView(UpdateView):
+class AdUploadImageView(UpdateAPIView):
     """
     Загрузка картинок в объявление.
-    Return: json-файл с данными объявления.
     """
-    model = Ad
-    fields = ['image']
+    queryset = Ad.objects.all()
+    serializer_class = AdUploadImageSerializer
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
 
         self.object.image = request.FILES.get('image', None)
         self.object.save()
-
-        return JsonResponse({
-            "id": self.object.id,
-            "name": self.object.name,
-            "author": self.object.author.first_name,
-            "author_id": self.object.author_id,
-            "price": self.object.price,
-            "description": self.object.description,
-            "is_published": self.object.is_published,
-            "category": self.object.category.name,
-            "category_id": self.object.category_id,
-            "image": self.object.image.url if self.object.image else None
-        }, json_dumps_params=JSON_DUMPS_PARAM)
+        return self.update(request, *args, **kwargs)
