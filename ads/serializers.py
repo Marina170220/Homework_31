@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from ads.models import Category, Ad, Selection
+from Homework_27.validators import NewAdValidator
 from users.serializers import LocationSerializer
 
 
@@ -23,6 +24,7 @@ class AdSerializer(serializers.ModelSerializer):
 
 class AdCreateSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
+    is_published = serializers.BooleanField(validators=[NewAdValidator()])
 
     class Meta:
         model = Ad

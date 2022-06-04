@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from Homework_27.validators import EmailCheck
 from users.models import Location, User
 
 
@@ -28,6 +29,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         slug_field='name',
         queryset=Location.objects.all()
     )
+    email = serializers.EmailField(validators=[EmailCheck("rambler.ru")])
 
     def is_valid(self, raise_exception=False):
         self._locations = self.initial_data.pop('locations')
