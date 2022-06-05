@@ -17,6 +17,10 @@ def test_ads_list(client):
         "results": AdSerializer(ads, many=True).data
     }
 
-    response = client.get("/ad/")
-    assert response.status_code == 200
-    assert response.data == expected_response
+    response_200 = client.get("/ad/")
+    response_404 = client.get("/ads/")
+
+    assert response_200.status_code == 200
+    assert response_200.data == expected_response
+
+    assert response_404.status_code == 404
