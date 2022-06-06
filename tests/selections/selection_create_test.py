@@ -16,20 +16,29 @@ def test_create_selection(client, user, ad, user_token):
         "items": [ad.pk]
     }
 
-    response_201 = client.post(
+    response = client.post(
         "/selection/create/",
         data=data,
         content_type='application/json',
         HTTP_AUTHORIZATION='Bearer ' + user_token
     )
 
-    response_401 = client.post(
+    assert response.status_code == 201
+    assert response.data == expected_response
+
+
+@pytest.mark.django_db
+def test_auth_required(client, user, ad):
+    data = {
+        "name": "test_selection",
+        "owner": user.pk,
+        "items": [ad.pk]
+    }
+
+    response = client.post(
         "/selection/create/",
         data=data,
         content_type='application/json',
     )
 
-    assert response_201.status_code == 201
-    assert response_201.data == expected_response
-
-    assert response_401.status_code == 401
+    assert response.status_code == 401

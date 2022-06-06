@@ -2,9 +2,8 @@ import pytest
 
 
 @pytest.mark.django_db
-def test_create_ad(client, user, category):
-
-    expected_response_201 = {
+def test_success(client, user, category):
+    expected_response = {
         "id": 1,
         "name": "test_ad_name",
         "author": user.pk,
@@ -15,17 +14,7 @@ def test_create_ad(client, user, category):
         "category": category.pk,
     }
 
-    expected_response_400 = {
-        "is_published": [
-            "New ad can't be published."
-        ],
-        "name": [
-            "Ensure this field has at least 10 characters."
-        ],
-        "price": [
-            "Ensure this value is greater than or equal to 0."]}
-
-    data_201 = {
+    data = {
         "name": "test_ad_name",
         "price": 100,
         "description": "test_description",
@@ -34,37 +23,101 @@ def test_create_ad(client, user, category):
         "is_published": False
     }
 
-    data_400 = {
-        "name": "test",
+    response = client.post(
+        "/ad/create/",
+        data=data,
+        content_type='application/json'
+    )
+
+    assert response.status_code == 201
+    assert response.data == expected_response
+
+
+@pytest.mark.django_db
+def test_wrong_price(client, user, category):
+    data = {
+        "name": "test1_ad_name",
         "price": -100,
-        "description": "",
+        "description": "test_description",
+        "author": user.pk,
+        "category": category.pk,
+        "is_published": False
+    }
+
+    expected_response = {
+        "price": [
+            "Ensure this value is greater than or equal to 0."]}
+
+    response = client.post(
+        "/ad/create/",
+        data=data,
+        content_type='application/json'
+    )
+
+    assert response.status_code == 400
+    assert response.data == expected_response
+
+
+@pytest.mark.django_db
+def test_wrong_name(client, user, category):
+    data = {
+        "name": "test",
+        "price": 100,
+        "description": "test_description",
+        "author": user.pk,
+        "category": category.pk,
+        "is_published": False
+    }
+
+    expected_response = {
+
+        "name": [
+            "Ensure this field has at least 10 characters."
+        ]
+    }
+
+    response = client.post(
+        "/ad/create/",
+        data=data,
+        content_type='application/json'
+    )
+
+    assert response.status_code == 400
+    assert response.data == expected_response
+
+
+@pytest.mark.django_db
+def test_published(client, user, category):
+    data = {
+        "name": "test2_ad_name",
+        "price": 100,
+        "description": "test_description",
         "author": user.pk,
         "category": category.pk,
         "is_published": True
     }
 
-    response_201 = client.post(
+    expected_response = {
+        "is_published": [
+            "New ad can't be published."
+        ]
+    }
+
+    response = client.post(
         "/ad/create/",
-        data=data_201,
+        data=data,
         content_type='application/json'
     )
 
-    response_400 = client.post(
-        "/ad/create/",
-        data=data_400,
-        content_type='application/json'
-    )
+    assert response.status_code == 400
+    assert response.data == expected_response
 
-    response_404 = client.post(
+
+@pytest.mark.django_db
+def test_not_found(client):
+    response = client.post(
         "/ads/create/",
-        data=data_201,
         content_type='application/json'
     )
 
-    assert response_201.status_code == 201
-    assert response_201.data == expected_response_201
-
-    assert response_400.status_code == 400
-    assert response_400.data == expected_response_400
-
-    assert response_404.status_code == 404
+    assert response.status_code == 404

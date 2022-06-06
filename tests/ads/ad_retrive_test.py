@@ -5,16 +5,18 @@ from ads.serializers import AdSerializer
 
 @pytest.mark.django_db
 def test_retrieve_ad(client, ad, user_token):
-    response_200 = client.get(f"/ad/{ad.pk}/",
+    response = client.get(f"/ad/{ad.pk}/",
                           content_type='application/json',
                           HTTP_AUTHORIZATION='Bearer ' + user_token
                           )
 
-    response_401 = client.get(f"/ad/{ad.pk}/",
-                            content_type='application/json',
-                            )
+    assert response.status_code == 200
+    assert response.data == AdSerializer(ad).data
 
-    assert response_200.status_code == 200
-    assert response_200.data == AdSerializer(ad).data
 
-    assert response_401.status_code == 401
+@pytest.mark.django_db
+def test_auth_required(client, ad):
+    response = client.get(f"/ad/{ad.pk}/",
+                          content_type='application/json',
+                          )
+    assert response.status_code == 401
